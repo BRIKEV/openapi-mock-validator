@@ -1,0 +1,206 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "Composition Test", "version": "1.0.0" },
+  "paths": {
+    "/v1/payments": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["type", "cardNumber"],
+                    "properties": {
+                      "type": { "type": "string", "enum": ["card"] },
+                      "cardNumber": { "type": "string" },
+                      "cvv": { "type": "string" }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["type", "iban"],
+                    "properties": {
+                      "type": { "type": "string", "enum": ["bank"] },
+                      "iban": { "type": "string" },
+                      "bic": { "type": "string" }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "type"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["id", "status"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "completed", "failed"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/products": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Product list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "required": ["id", "name", "price"],
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "price": { "type": "number" }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": ["id", "name", "plan"],
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "plan": { "type": "string" }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{userId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "User with merged properties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "required": ["id", "email"],
+                      "properties": {
+                        "id": { "type": "integer" },
+                        "email": { "type": "string", "format": "email" }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["name"],
+                      "properties": {
+                        "name": { "type": "string" },
+                        "avatar": { "type": "string", "nullable": true }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/nullable-response": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Nullable oneOf response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": ["data"],
+                      "properties": {
+                        "data": { "type": "string" }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["error"],
+                      "properties": {
+                        "error": { "type": "string" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/nested-composition": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Nested composition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "required": ["id"],
+                      "properties": {
+                        "id": { "type": "integer" }
+                      }
+                    },
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": ["kind"],
+                          "properties": {
+                            "kind": { "type": "string", "enum": ["typeA"] },
+                            "valueA": { "type": "string" }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": ["kind"],
+                          "properties": {
+                            "kind": { "type": "string", "enum": ["typeB"] },
+                            "valueB": { "type": "number" }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
