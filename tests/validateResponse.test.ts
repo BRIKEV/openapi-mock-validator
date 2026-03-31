@@ -40,7 +40,7 @@ describe('validateResponse', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].keyword).toBe('type');
-      expect(result.errors[0].path).toBe('/id');
+      expect(result.errors[0].path).toBe('response.id');
     });
 
     it('catches wrong type for name (number instead of string)', () => {
@@ -122,7 +122,7 @@ describe('validateResponse', () => {
         { id: 'bad', name: 'Fido' },
       ]);
       expect(result.valid).toBe(false);
-      expect(result.errors[0].path).toContain('/0');
+      expect(result.errors[0].path).toContain('[0]');
     });
   });
 });

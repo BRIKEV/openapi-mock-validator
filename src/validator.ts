@@ -120,31 +120,57 @@ export class OpenAPIMockValidator {
       return { valid: true, errors: [], warnings: existingWarnings };
     }
 
-    const errors: ValidationError[] = (ajv.errors || []).map((err: Record<string, unknown>) => {
+    const rawErrors: ValidationError[] = (ajv.errors || []).map((err: Record<string, unknown>) => {
       const params = err.params as Record<string, unknown> | undefined;
+      const instancePath = (err.instancePath as string) || '';
+      const dotPath = toDotPath(instancePath);
+
       const error: ValidationError = {
-        path: (err.instancePath as string) || '/',
+        path: dotPath,
         message: (err.message as string) || 'validation failed',
         keyword: err.keyword as string,
       };
 
+      if (err.keyword === 'required') {
+        const missingProp = params?.missingProperty as string;
+        error.path = dotPath ? `${dotPath}.${missingProp}` : missingProp;
+        error.message = 'missing required property';
+      }
+
       if (err.keyword === 'type') {
         error.expected = String(params?.type);
         error.received = typeof payload === 'object' && payload !== null
-          ? typeof getValueAtPath(payload, err.instancePath as string)
+          ? typeof getValueAtPath(payload, instancePath)
           : typeof payload;
+        error.message = `expected ${error.expected}, got ${error.received}`;
       }
 
       if (err.keyword === 'enum') {
-        error.expected = (params?.allowedValues as unknown[])?.join(', ');
+        const allowed = (params?.allowedValues as unknown[]);
+        error.expected = allowed?.join(', ');
+        error.message = `must be one of: ${allowed?.map(v => `"${v}"`).join(', ')}`;
       }
 
       if (err.keyword === 'additionalProperties') {
-        error.path = `${err.instancePath}/${params?.additionalProperty}`;
+        const extra = params?.additionalProperty as string;
+        error.path = dotPath ? `${dotPath}.${extra}` : extra;
+        error.message = 'unexpected property';
+      }
+
+      if (err.keyword === 'oneOf') {
+        error.message = 'does not match any allowed schema (oneOf)';
+      }
+
+      if (err.keyword === 'anyOf') {
+        error.message = 'does not match any allowed schema (anyOf)';
       }
 
       return error;
     });
+
+    // Collapse oneOf/anyOf: if the final error is a oneOf/anyOf keyword,
+    // keep only that summary and drop the per-branch sub-errors
+    const errors = collapseCompositionErrors(rawErrors);
 
     return { valid: false, errors, warnings: existingWarnings };
   }
@@ -233,4 +259,28 @@ function getValueAtPath(obj: unknown, path: string): unknown {
     current = (current as Record<string, unknown>)[part];
   }
   return current;
+}
+
+function toDotPath(instancePath: string): string {
+  if (!instancePath || instancePath === '/') return 'response';
+  const parts = instancePath.split('/').filter(Boolean);
+  const segments = parts.map((p) => /^\d+$/.test(p) ? `[${p}]` : `.${p}`);
+  return `response${segments.join('')}`;
+}
+
+function collapseCompositionErrors(errors: ValidationError[]): ValidationError[] {
+  if (errors.length <= 1) return errors;
+
+  const last = errors[errors.length - 1];
+  if (last.keyword === 'oneOf' || last.keyword === 'anyOf') {
+    const prefix = last.path;
+    // Keep the composition error itself and any errors NOT under that path
+    return errors.filter((e) => {
+      if (e === last) return true;
+      // Drop sub-errors that are children of the composition path
+      return !e.path.startsWith(prefix);
+    });
+  }
+
+  return errors;
 }
