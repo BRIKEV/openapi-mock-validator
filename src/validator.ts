@@ -18,6 +18,8 @@ export class OpenAPIMockValidator {
   private spec: OpenAPISpec;
   private options: Required<ValidatorOptions>;
   private compiledPaths: CompiledPath[] | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ajv2020 lacks proper type exports
+  private ajv: any = null;
   private initialized = false;
 
   constructor(spec: OpenAPISpec, options?: ValidatorOptions) {
@@ -55,6 +57,12 @@ export class OpenAPIMockValidator {
 
     // Step 3: Compile path matchers
     this.compiledPaths = compilePaths(this.spec.paths);
+
+    // Step 4: Create reusable Ajv instance
+    // @ts-expect-error -- ajv/dist/2020.js lacks proper type declarations
+    this.ajv = new Ajv2020({ strict: false, allErrors: true });
+    // @ts-expect-error -- ajv-formats type mismatch with Ajv2020
+    addFormats(this.ajv);
 
     this.initialized = true;
   }
@@ -109,18 +117,13 @@ export class OpenAPIMockValidator {
       ? this.addAdditionalPropertiesFalse(structuredClone(schema))
       : schema;
 
-    // @ts-expect-error -- ajv/dist/2020.js lacks proper type declarations
-    const ajv = new Ajv2020({ strict: false, allErrors: true });
-    // @ts-expect-error -- ajv-formats type mismatch with Ajv2020
-    addFormats(ajv);
-
-    const valid = ajv.validate(schemaToValidate, payload);
+    const valid = this.ajv!.validate(schemaToValidate, payload);
 
     if (valid) {
       return { valid: true, errors: [], warnings: existingWarnings };
     }
 
-    const rawErrors: ValidationError[] = (ajv.errors || []).map((err: Record<string, unknown>) => {
+    const rawErrors: ValidationError[] = (this.ajv!.errors || []).map((err: Record<string, unknown>) => {
       const params = err.params as Record<string, unknown> | undefined;
       const instancePath = (err.instancePath as string) || '';
       const dotPath = toDotPath(instancePath);
