@@ -199,12 +199,48 @@ export class OpenAPIMockValidator {
       this.addAdditionalPropertiesFalse(schema.items as Record<string, unknown>);
     }
 
-    // Recurse into composition keywords
-    for (const keyword of ['allOf', 'oneOf', 'anyOf']) {
+    // Recurse into oneOf/anyOf branches
+    for (const keyword of ['oneOf', 'anyOf']) {
       if (Array.isArray(schema[keyword])) {
         for (const branch of schema[keyword] as Record<string, unknown>[]) {
           this.addAdditionalPropertiesFalse(branch);
         }
+      }
+    }
+
+    // For allOf: merge sibling properties before recursing so each branch
+    // knows about properties defined in other branches. Without this,
+    // additionalProperties:false on branch A rejects properties from branch B.
+    if (Array.isArray(schema.allOf)) {
+      const branches = schema.allOf as Record<string, unknown>[];
+
+      // Collect the union of all property keys across all allOf branches
+      const allPropertyKeys = new Set<string>();
+      for (const branch of branches) {
+        if (branch.properties && typeof branch.properties === 'object') {
+          for (const key of Object.keys(branch.properties as Record<string, unknown>)) {
+            allPropertyKeys.add(key);
+          }
+        }
+      }
+
+      // Inject empty stubs for missing sibling properties into each branch
+      if (allPropertyKeys.size > 0) {
+        for (const branch of branches) {
+          if (branch.properties && typeof branch.properties === 'object') {
+            const props = branch.properties as Record<string, unknown>;
+            for (const key of allPropertyKeys) {
+              if (!(key in props)) {
+                props[key] = {};
+              }
+            }
+          }
+        }
+      }
+
+      // Now recurse into each branch
+      for (const branch of branches) {
+        this.addAdditionalPropertiesFalse(branch);
       }
     }
 
