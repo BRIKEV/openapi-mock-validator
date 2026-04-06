@@ -112,6 +112,17 @@ describe('composition validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.keyword === 'required')).toBe(true);
     });
+
+    it('validates merged properties in strict mode', () => {
+      const result = validator.validateResponse('/v1/users/{userId}', 'get', 200, {
+        id: 1,
+        email: 'test@example.com',
+        name: 'John',
+        avatar: null,
+      });
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
   });
 
   describe('nullable + oneOf (3.0 normalization)', () => {
@@ -261,6 +272,37 @@ describe('composition validation', () => {
       ]);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+    });
+
+    it('still rejects invalid type value in strict mode', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'unknown',
+          value: { name: 'Test', sku: 'test' },
+        },
+      ]);
+      expect(result.valid).toBe(false);
+    });
+
+    it('still rejects extra properties on the item in strict mode', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'plan',
+          value: { name: 'Plan', sku: 'plan-1', periodicity: 'monthly', metadata: { recurrence: 'monthly' } },
+          extraField: 'should not be here',
+        },
+      ]);
+      expect(result.valid).toBe(false);
+    });
+
+    it('still rejects missing required fields in strict mode', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'trip',
+          value: { name: 'Spain' },
+        },
+      ]);
+      expect(result.valid).toBe(false);
     });
   });
 });
