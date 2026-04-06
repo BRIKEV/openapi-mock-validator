@@ -34,6 +34,13 @@ function normalizeSchema(schema: Schema): Schema {
       delete result.nullable;
       return normalizeChildren(result);
     }
+    // nullable without type (e.g. allOf composition or bare description):
+    // wrap in anyOf with null branch
+    if (schema.type === undefined) {
+      const rest: Schema = { ...schema };
+      delete rest.nullable;
+      return normalizeChildren({ anyOf: [rest, { type: 'null' }] });
+    }
   }
 
   // Handle exclusiveMinimum boolean (3.0 style)
