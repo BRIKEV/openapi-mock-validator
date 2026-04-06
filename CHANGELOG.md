@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 (2026-04-06)
+
+### Bug Fixes
+
+- **strict mode:** Fix false positives when validating `oneOf` schemas with `allOf` composition. Strict mode was applying `additionalProperties: false` to each `allOf` branch independently, causing sibling properties to be rejected as unexpected. Now merges property keys across `allOf` branches before applying strict constraints.
+
 ## 0.1.1 (2026-04-06)
 
 ### Bug Fixes
