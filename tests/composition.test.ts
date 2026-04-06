@@ -190,4 +190,77 @@ describe('composition validation', () => {
       expect(result.errors[0].keyword).toBe('enum');
     });
   });
+
+  describe('oneOf with allOf branches (strict mode)', () => {
+    it('validates plan item without false positive', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'plan',
+          value: {
+            name: 'Unlimited Plan',
+            sku: 'plan-unlimited',
+            periodicity: 'monthly',
+            metadata: { recurrence: 'monthly' },
+          },
+        },
+      ]);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('validates trip item without false positive', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'trip',
+          value: {
+            name: 'Spain',
+            sku: 'trip-spain',
+            days: 7,
+            metadata: { days: 7 },
+          },
+        },
+      ]);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('validates credit-recharge item without false positive', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'credit-recharge',
+          value: {
+            name: 'Credit Recharge 500',
+            sku: 'credit-recharge-500',
+          },
+        },
+      ]);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('validates mixed cart items without false positive', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'plan',
+          value: {
+            name: 'Unlimited Plan',
+            sku: 'plan-unlimited',
+            periodicity: 'monthly',
+            metadata: { recurrence: 'monthly' },
+          },
+        },
+        {
+          type: 'trip',
+          value: {
+            name: 'Spain',
+            sku: 'trip-spain',
+            days: 7,
+            metadata: { days: 7 },
+          },
+        },
+      ]);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
 });
