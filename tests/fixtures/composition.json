@@ -201,6 +201,134 @@
           }
         }
       }
+    },
+    "/v1/cart-items": {
+    "post": {
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "allOf": [
+                      {
+                        "type": "object",
+                        "required": ["type", "value"],
+                        "properties": {
+                          "type": { "type": "string", "enum": ["plan", "trip", "credit-recharge"] }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["plan"] },
+                          "value": {
+                            "type": "object",
+                            "required": ["name", "sku"],
+                            "properties": {
+                              "name": { "type": "string" },
+                              "sku": { "type": "string" },
+                              "periodicity": { "type": "string", "enum": ["monthly", "yearly"] },
+                              "metadata": {
+                                "type": "object",
+                                "required": ["recurrence"],
+                                "properties": {
+                                  "recurrence": { "type": "string", "enum": ["monthly", "yearly"] }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "allOf": [
+                      {
+                        "type": "object",
+                        "required": ["type", "value"],
+                        "properties": {
+                          "type": { "type": "string", "enum": ["plan", "trip", "credit-recharge"] }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["trip"] },
+                          "value": {
+                            "type": "object",
+                            "required": ["name", "sku", "days"],
+                            "properties": {
+                              "name": { "type": "string" },
+                              "sku": { "type": "string" },
+                              "days": { "type": "integer" },
+                              "metadata": {
+                                "type": "object",
+                                "required": ["days"],
+                                "properties": {
+                                  "days": { "type": "integer" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "allOf": [
+                      {
+                        "type": "object",
+                        "required": ["type", "value"],
+                        "properties": {
+                          "type": { "type": "string", "enum": ["plan", "trip", "credit-recharge"] }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["credit-recharge"] },
+                          "value": {
+                            "type": "object",
+                            "required": ["name", "sku"],
+                            "properties": {
+                              "name": { "type": "string" },
+                              "sku": { "type": "string" }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "type"
+                }
+              }
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Cart items validated",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ok"],
+                "properties": {
+                  "ok": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
+}
 }
