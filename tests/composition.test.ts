@@ -49,6 +49,43 @@ describe('composition validation', () => {
       });
       expect(result.valid).toBe(false);
     });
+
+    it('shows discriminator branch errors for card with extra property in strict mode', () => {
+      const result = validator.validateRequest('/v1/payments', 'post', {
+        type: 'card',
+        cardNumber: '4111111111111111',
+        extraField: 'oops',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toBe(
+        'oneOf matched branch "card" (via discriminator "type"), but: unexpected property'
+      );
+    });
+
+    it('falls back to best-match when discriminator value is unmapped', () => {
+      const result = validator.validateRequest('/v1/payments', 'post', {
+        type: 'crypto',
+        walletAddress: '0x123',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toBe(
+        'oneOf best match (branch 1 of 2) failed: must be one of: "card", unexpected property'
+      );
+    });
+
+    it('falls back to best-match when discriminator field is missing', () => {
+      const result = validator.validateRequest('/v1/payments', 'post', {
+        cardNumber: '4111111111111111',
+        iban: 'DE89370400440532013000',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toBe(
+        'oneOf best match (branch 1 of 2) failed: missing required property, unexpected property'
+      );
+    });
   });
 
   describe('anyOf (product types)', () => {
@@ -79,6 +116,28 @@ describe('composition validation', () => {
         { id: 1, name: 'Widget' },
       ]);
       expect(result.valid).toBe(false);
+    });
+
+    it('shows best-match error for item matching no branch', () => {
+      const result = validator.validateResponse('/v1/products', 'get', 200, [
+        { id: 1, name: 'Widget' },
+      ]);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toBe(
+        'anyOf best match (branch 1 of 2) failed: missing required property, unexpected property'
+      );
+    });
+
+    it('picks price branch as best match when price has wrong type', () => {
+      const result = validator.validateResponse('/v1/products', 'get', 200, [
+        { id: 1, name: 'Widget', price: 'not-a-number' },
+      ]);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toBe(
+        'anyOf best match (branch 1 of 2) failed: expected number, got string'
+      );
     });
   });
 
@@ -144,6 +203,16 @@ describe('composition validation', () => {
       });
       expect(result.valid).toBe(false);
     });
+
+    it('shows specific sub-errors for non-null non-matching payload', () => {
+      const result = lenientValidator.validateResponse('/v1/nullable-response', 'get', 200, {
+        unrelated: 'field',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) =>
+        e.message === 'oneOf best match (branch 1 of 3) failed: missing required property'
+      )).toBe(true);
+    });
   });
 
   describe('nested composition (allOf containing oneOf)', () => {
@@ -180,6 +249,18 @@ describe('composition validation', () => {
         valueA: 'hello',
       });
       expect(result.valid).toBe(false);
+    });
+
+    it('shows specific oneOf sub-errors for invalid kind value', () => {
+      const result = lenientValidator.validateResponse('/v1/nested-composition', 'get', 200, {
+        id: 1,
+        kind: 'typeC',
+        valueA: 'hello',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) =>
+        e.message === 'oneOf best match (branch 1 of 2) failed: must be one of: "typeA"'
+      )).toBe(true);
     });
   });
 
@@ -303,6 +384,41 @@ describe('composition validation', () => {
         },
       ]);
       expect(result.valid).toBe(false);
+    });
+
+    it('shows discriminator branch errors for invalid cart item', () => {
+      const result = validator.validateRequest('/v1/cart-items', 'post', [
+        {
+          type: 'trip',
+          value: { name: 'Spain' },
+        },
+      ]);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) =>
+        e.message.includes('matched branch "trip"') &&
+        e.message.includes('via discriminator "type"')
+      )).toBe(true);
+    });
+  });
+
+  describe('error message format', () => {
+    it('anyOf errors use "anyOf" keyword in message, not "oneOf"', () => {
+      const result = validator.validateResponse('/v1/products', 'get', 200, [
+        { id: 1, name: 'Widget' },
+      ]);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].message).toMatch(/^anyOf /);
+      expect(result.errors[0].message).not.toContain('oneOf');
+    });
+
+    it('oneOf errors use "oneOf" keyword in message, not "anyOf"', () => {
+      const result = validator.validateRequest('/v1/payments', 'post', {
+        type: 'crypto',
+        walletAddress: '0x123',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].message).toMatch(/^oneOf /);
+      expect(result.errors[0].message).not.toContain('anyOf');
     });
   });
 });
