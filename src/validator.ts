@@ -14,6 +14,11 @@ import type {
   CompiledPath,
 } from './types.js';
 
+interface InternalError extends ValidationError {
+  schemaPath: string;
+  instancePath: string;
+}
+
 export class OpenAPIMockValidator {
   private spec: OpenAPISpec;
   private options: Required<ValidatorOptions>;
@@ -123,15 +128,17 @@ export class OpenAPIMockValidator {
       return { valid: true, errors: [], warnings: existingWarnings };
     }
 
-    const rawErrors: ValidationError[] = (this.ajv!.errors || []).map((err: Record<string, unknown>) => {
+    const rawErrors: InternalError[] = (this.ajv!.errors || []).map((err: Record<string, unknown>) => {
       const params = err.params as Record<string, unknown> | undefined;
       const instancePath = (err.instancePath as string) || '';
       const dotPath = toDotPath(instancePath);
 
-      const error: ValidationError = {
+      const error: InternalError = {
         path: dotPath,
         message: (err.message as string) || 'validation failed',
         keyword: err.keyword as string,
+        schemaPath: (err.schemaPath as string) || '',
+        instancePath,
       };
 
       if (err.keyword === 'required') {
@@ -307,7 +314,7 @@ function toDotPath(instancePath: string): string {
   return `response${segments.join('')}`;
 }
 
-function collapseCompositionErrors(errors: ValidationError[]): ValidationError[] {
+function collapseCompositionErrors(errors: InternalError[]): ValidationError[] {
   if (errors.length <= 1) return errors;
 
   const last = errors[errors.length - 1];
