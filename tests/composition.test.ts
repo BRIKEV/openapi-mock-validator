@@ -71,7 +71,7 @@ describe('composition validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toBe(
-        'oneOf best match (branch 1 of 2) failed: must be one of: "card", unexpected property'
+        'oneOf best match (branch 1 of 2) failed: missing required property, unexpected property, must be one of: "card"'
       );
     });
 
@@ -125,7 +125,7 @@ describe('composition validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toBe(
-        'anyOf best match (branch 1 of 2) failed: missing required property, unexpected property'
+        'anyOf best match (branch 1 of 2) failed: missing required property'
       );
     });
 

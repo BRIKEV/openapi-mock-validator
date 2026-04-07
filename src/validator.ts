@@ -180,7 +180,7 @@ export class OpenAPIMockValidator {
 
     // Collapse oneOf/anyOf: if the final error is a oneOf/anyOf keyword,
     // keep only that summary and drop the per-branch sub-errors
-    const errors = collapseCompositionErrors(rawErrors);
+    const errors = resolveCompositionErrors(rawErrors, schemaToValidate, payload);
 
     return { valid: false, errors, warnings: existingWarnings };
   }
@@ -314,19 +314,168 @@ function toDotPath(instancePath: string): string {
   return `response${segments.join('')}`;
 }
 
-function collapseCompositionErrors(errors: InternalError[]): ValidationError[] {
+function resolveCompositionErrors(
+  errors: InternalError[],
+  schema: Record<string, unknown>,
+  payload: unknown,
+): ValidationError[] {
   if (errors.length <= 1) return errors;
 
-  const last = errors[errors.length - 1];
-  if (last.keyword === 'oneOf' || last.keyword === 'anyOf') {
-    const prefix = last.path;
-    // Keep the composition error itself and any errors NOT under that path
-    return errors.filter((e) => {
-      if (e === last) return true;
-      // Drop sub-errors that are children of the composition path
-      return !e.path.startsWith(prefix);
-    });
+  // Find the composition error (last error with keyword oneOf or anyOf)
+  const compositionError = findCompositionError(errors);
+  if (!compositionError) return errors;
+
+  const keyword = compositionError.keyword; // 'oneOf' or 'anyOf'
+  const prefix = compositionError.schemaPath; // e.g. '#/oneOf' or '#/allOf/1/oneOf'
+
+  // Group sub-errors by branch index
+  const branchErrors = new Map<number, InternalError[]>();
+  for (const err of errors) {
+    if (err === compositionError) continue;
+    if (!err.schemaPath.startsWith(prefix + '/')) continue;
+    if (!err.instancePath.startsWith(compositionError.instancePath)) continue;
+
+    const rest = err.schemaPath.slice(prefix.length + 1); // e.g. '0/required'
+    const branchIndex = parseInt(rest.split('/')[0], 10);
+    if (isNaN(branchIndex)) continue;
+
+    if (!branchErrors.has(branchIndex)) {
+      branchErrors.set(branchIndex, []);
+    }
+    branchErrors.get(branchIndex)!.push(err);
   }
 
-  return errors;
+  const totalBranches = branchErrors.size;
+  if (totalBranches === 0) {
+    return filterNonSubErrors(errors, compositionError);
+  }
+
+  // Try discriminator resolution
+  const discriminatorMsg = tryDiscriminatorResolution(
+    keyword, schema, compositionError, branchErrors, payload,
+  );
+
+  if (discriminatorMsg) {
+    compositionError.message = discriminatorMsg;
+  } else {
+    // Best-match: pick branch with fewest errors (first wins on tie)
+    let bestBranch = -1;
+    let bestCount = Infinity;
+    const sortedBranches = [...branchErrors.keys()].sort((a, b) => a - b);
+    for (const branch of sortedBranches) {
+      const count = branchErrors.get(branch)!.length;
+      if (count < bestCount) {
+        bestCount = count;
+        bestBranch = branch;
+      }
+    }
+
+    const subMessages = branchErrors.get(bestBranch)!.map((e) => e.message);
+    compositionError.message =
+      `${keyword} best match (branch ${bestBranch + 1} of ${totalBranches}) failed: ${subMessages.join(', ')}`;
+  }
+
+  return filterNonSubErrors(errors, compositionError);
+}
+
+function findCompositionError(errors: InternalError[]): InternalError | undefined {
+  // Search from the end for the last oneOf/anyOf error
+  for (let i = errors.length - 1; i >= 0; i--) {
+    if (errors[i].keyword === 'oneOf' || errors[i].keyword === 'anyOf') {
+      return errors[i];
+    }
+  }
+  return undefined;
+}
+
+function tryDiscriminatorResolution(
+  keyword: string,
+  schema: Record<string, unknown>,
+  compositionError: InternalError,
+  branchErrors: Map<number, InternalError[]>,
+  payload: unknown,
+): string | null {
+  // Navigate schema to the parent object containing the composition keyword
+  const schemaPath = compositionError.schemaPath; // e.g. '#/oneOf' or '#/allOf/1/oneOf'
+  const segments = schemaPath.replace(/^#\//, '').split('/');
+  // Remove the last segment (the keyword itself) to get the parent
+  const parentSegments = segments.slice(0, -1);
+
+  let parent: Record<string, unknown> = schema;
+  for (const seg of parentSegments) {
+    if (parent === null || parent === undefined || typeof parent !== 'object') return null;
+    if (Array.isArray(parent)) {
+      parent = parent[parseInt(seg, 10)] as Record<string, unknown>;
+    } else {
+      parent = parent[seg] as Record<string, unknown>;
+    }
+  }
+
+  if (!parent || typeof parent !== 'object') return null;
+
+  const discriminator = parent.discriminator as Record<string, unknown> | undefined;
+  if (!discriminator?.propertyName) return null;
+
+  const propName = discriminator.propertyName as string;
+
+  // Get payload at the composition error's instancePath
+  const instancePayload = getValueAtPath(payload, compositionError.instancePath);
+  if (!instancePayload || typeof instancePayload !== 'object') return null;
+
+  const discriminatorValue = (instancePayload as Record<string, unknown>)[propName];
+  if (discriminatorValue === undefined || discriminatorValue === null) return null;
+
+  // Find which branch matches the discriminator value
+  const branches = parent[keyword] as Record<string, unknown>[];
+  if (!Array.isArray(branches)) return null;
+
+  let matchedBranch = -1;
+  for (let i = 0; i < branches.length; i++) {
+    if (branchHasDiscriminatorValue(branches[i], propName, discriminatorValue)) {
+      matchedBranch = i;
+      break;
+    }
+  }
+
+  if (matchedBranch === -1) return null;
+
+  const subErrors = branchErrors.get(matchedBranch);
+  if (!subErrors || subErrors.length === 0) return null;
+
+  const subMessages = subErrors.map((e) => e.message);
+  return `${keyword} matched branch "${discriminatorValue}" (via discriminator "${propName}"), but: ${subMessages.join(', ')}`;
+}
+
+function branchHasDiscriminatorValue(
+  branch: Record<string, unknown>,
+  propName: string,
+  value: unknown,
+): boolean {
+  // Check direct properties
+  const props = branch.properties as Record<string, Record<string, unknown>> | undefined;
+  if (props?.[propName]) {
+    const prop = props[propName];
+    if (Array.isArray(prop.enum) && prop.enum.includes(value)) return true;
+    if (prop.const === value) return true;
+  }
+
+  // Recurse into allOf
+  if (Array.isArray(branch.allOf)) {
+    for (const sub of branch.allOf as Record<string, unknown>[]) {
+      if (branchHasDiscriminatorValue(sub, propName, value)) return true;
+    }
+  }
+
+  return false;
+}
+
+function filterNonSubErrors(
+  errors: InternalError[],
+  compositionError: InternalError,
+): ValidationError[] {
+  const prefix = compositionError.schemaPath + '/';
+  return errors.filter((e) => {
+    if (e === compositionError) return true;
+    return !e.schemaPath.startsWith(prefix);
+  });
 }
