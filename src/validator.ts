@@ -345,10 +345,13 @@ function resolveCompositionErrors(
     branchErrors.get(branchIndex)!.push(err);
   }
 
-  const totalBranches = branchErrors.size;
-  if (totalBranches === 0) {
+  if (branchErrors.size === 0) {
     return filterNonSubErrors(errors, compositionError);
   }
+
+  // Get actual branch count from schema (not just branches with errors)
+  const totalBranches = getSchemaCompositionBranchCount(schema, compositionError.schemaPath, keyword)
+    ?? branchErrors.size;
 
   // Try discriminator resolution
   const discriminatorMsg = tryDiscriminatorResolution(
@@ -467,6 +470,25 @@ function branchHasDiscriminatorValue(
   }
 
   return false;
+}
+
+function getSchemaCompositionBranchCount(
+  schema: Record<string, unknown>,
+  schemaPath: string,
+  keyword: string,
+): number | null {
+  const segments = schemaPath.replace(/^#\//, '').split('/');
+  // Navigate to the parent, then read the keyword array length
+  let current: unknown = schema;
+  for (const seg of segments.slice(0, -1)) {
+    if (current === null || current === undefined || typeof current !== 'object') return null;
+    current = Array.isArray(current)
+      ? (current as unknown[])[parseInt(seg, 10)]
+      : (current as Record<string, unknown>)[seg];
+  }
+  if (!current || typeof current !== 'object') return null;
+  const branches = (current as Record<string, unknown>)[keyword];
+  return Array.isArray(branches) ? branches.length : null;
 }
 
 function filterNonSubErrors(
