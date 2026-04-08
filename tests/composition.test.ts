@@ -59,7 +59,7 @@ describe('composition validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toBe(
-        'oneOf matched branch "card" (via discriminator "type"), but: unexpected property'
+        'oneOf matched branch "card" (via discriminator "type"), but: unexpected property "extraField"'
       );
     });
 
@@ -71,7 +71,7 @@ describe('composition validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toBe(
-        'oneOf best match (branch 1 of 2) failed: missing required property, unexpected property, must be one of: "card"'
+        'oneOf best match (branch 1 of 2) failed: missing required property "cardNumber", unexpected property "walletAddress", must be one of: "card"'
       );
     });
 
@@ -83,7 +83,7 @@ describe('composition validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toBe(
-        'oneOf best match (branch 1 of 2) failed: missing required property, unexpected property'
+        'oneOf best match (branch 1 of 2) failed: missing required property "type", unexpected property "iban"'
       );
     });
   });
@@ -125,7 +125,7 @@ describe('composition validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toBe(
-        'anyOf best match (branch 1 of 2) failed: missing required property'
+        'anyOf best match (branch 1 of 2) failed: missing required property "price"'
       );
     });
 
@@ -210,7 +210,7 @@ describe('composition validation', () => {
       });
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) =>
-        e.message === 'oneOf best match (branch 1 of 3) failed: missing required property'
+        e.message === 'oneOf best match (branch 1 of 3) failed: missing required property "data"'
       )).toBe(true);
     });
   });

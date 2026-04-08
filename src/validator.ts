@@ -144,7 +144,7 @@ export class OpenAPIMockValidator {
       if (err.keyword === 'required') {
         const missingProp = params?.missingProperty as string;
         error.path = dotPath ? `${dotPath}.${missingProp}` : missingProp;
-        error.message = 'missing required property';
+        error.message = `missing required property "${missingProp}"`;
       }
 
       if (err.keyword === 'type') {
@@ -164,7 +164,7 @@ export class OpenAPIMockValidator {
       if (err.keyword === 'additionalProperties') {
         const extra = params?.additionalProperty as string;
         error.path = dotPath ? `${dotPath}.${extra}` : extra;
-        error.message = 'unexpected property';
+        error.message = `unexpected property "${extra}"`;
       }
 
       if (err.keyword === 'oneOf') {
