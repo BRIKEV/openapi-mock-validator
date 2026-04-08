@@ -1,10 +1,16 @@
 # Changelog
 
+## 0.1.4 (2026-04-08)
+
+### Bug Fixes
+
+- **error messages:** Include property names in `required` and `additionalProperties` error messages (e.g., `missing required property "cardNumber"`, `unexpected property "extraField"`). Makes composition error summaries actionable.
+
 ## 0.1.3 (2026-04-07)
 
 ### Features
 
-- **error messages:** Descriptive oneOf/anyOf error messages. Instead of the generic "does not match any allowed schema", errors now identify the best-matching branch and its specific sub-errors. Supports discriminator-based resolution (e.g., `oneOf matched branch "card" (via discriminator "type"), but: unexpected property`) and best-match fallback (e.g., `anyOf best match (branch 1 of 2) failed: expected number, got string`).
+- **error messages:** Descriptive oneOf/anyOf error messages. Instead of the generic "does not match any allowed schema", errors now identify the best-matching branch and its specific sub-errors. Supports discriminator-based resolution (e.g., `oneOf matched branch "card" (via discriminator "type"), but: unexpected property "extraField"`) and best-match fallback (e.g., `anyOf best match (branch 1 of 2) failed: expected number, got string`).
 
 ## 0.1.2 (2026-04-06)
 
