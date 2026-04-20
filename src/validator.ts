@@ -262,29 +262,37 @@ export class OpenAPIMockValidator {
         if (key.startsWith('x-') || typeof value !== 'object' || value === null) continue;
         const operation = value as Record<string, unknown>;
 
-        // Normalize response schemas
+        // Normalize response schemas across all content types
         const responses = operation.responses as Record<string, Record<string, unknown>> | undefined;
         if (responses) {
           for (const response of Object.values(responses)) {
             const content = response?.content as Record<string, Record<string, unknown>> | undefined;
-            if (content?.['application/json']?.schema) {
-              content['application/json'].schema = normalizeSpec(
-                content['application/json'].schema as Record<string, unknown>,
-                spec.openapi,
-              );
+            if (content) {
+              for (const mediaTypeObj of Object.values(content)) {
+                if (mediaTypeObj?.schema) {
+                  mediaTypeObj.schema = normalizeSpec(
+                    mediaTypeObj.schema as Record<string, unknown>,
+                    spec.openapi,
+                  );
+                }
+              }
             }
           }
         }
 
-        // Normalize request body schemas
+        // Normalize request body schemas across all content types
         const requestBody = operation.requestBody as Record<string, unknown> | undefined;
         if (requestBody) {
           const content = requestBody.content as Record<string, Record<string, unknown>> | undefined;
-          if (content?.['application/json']?.schema) {
-            content['application/json'].schema = normalizeSpec(
-              content['application/json'].schema as Record<string, unknown>,
-              spec.openapi,
-            );
+          if (content) {
+            for (const mediaTypeObj of Object.values(content)) {
+              if (mediaTypeObj?.schema) {
+                mediaTypeObj.schema = normalizeSpec(
+                  mediaTypeObj.schema as Record<string, unknown>,
+                  spec.openapi,
+                );
+              }
+            }
           }
         }
       }

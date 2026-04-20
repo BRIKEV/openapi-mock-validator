@@ -77,3 +77,77 @@ describe('OpenAPIMockValidator', () => {
     });
   });
 });
+
+describe('normalizeAllSchemas — non-JSON content types', () => {
+  it('normalizes 3.0 schemas under non-JSON content types', async () => {
+    // A 3.0 spec where the image content type has a nullable string schema —
+    // after normalization, nullable: true should become type: ['string', 'null'].
+    const spec = {
+      openapi: '3.0.0',
+      info: { title: 'test', version: '1.0.0' },
+      paths: {
+        '/file': {
+          get: {
+            responses: {
+              '200': {
+                description: 'OK',
+                content: {
+                  'image/jpeg': {
+                    schema: { type: 'string', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const validator = new OpenAPIMockValidator(spec as never);
+    await validator.init();
+
+    // After init the spec is normalized in place; reach into it via the
+    // validator's internal state by validating with the declared content-type.
+    // A null payload should now validate as a string|null after normalization.
+    const result = validator.validateResponse('/file', 'get', 200, null, {
+      contentType: 'image/jpeg',
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('also normalizes non-JSON request body schemas', async () => {
+    const spec = {
+      openapi: '3.0.0',
+      info: { title: 'test', version: '1.0.0' },
+      paths: {
+        '/upload': {
+          post: {
+            requestBody: {
+              content: {
+                'multipart/form-data': {
+                  schema: {
+                    type: 'object',
+                    required: ['name'],
+                    properties: {
+                      name: { type: 'string', nullable: true },
+                    },
+                  },
+                },
+              },
+            },
+            responses: { '200': { description: 'OK' } },
+          },
+        },
+      },
+    };
+
+    const validator = new OpenAPIMockValidator(spec as never);
+    await validator.init();
+
+    const result = validator.validateRequest('/upload', 'post', { name: null }, {
+      contentType: 'multipart/form-data',
+    });
+    expect(result.valid).toBe(true);
+  });
+});
