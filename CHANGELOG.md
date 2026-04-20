@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (2026-04-20)
+
+### Features
+
+- **content-type:** Add optional `contentType` to `ValidatorOptions` for `validateResponse` and `validateRequest`. Defaults to `application/json` (backwards compatible). Media-type resolution order is exact match → family wildcard (`image/*`) → `*/*`. Unmatched binary content types (`image/*`, `video/*`, `audio/*`, `application/octet-stream`, `application/pdf`, `application/zip`) are silently bypassed — no more false-positive `MISSING_SCHEMA` warnings when a mock returns binary data like a QR code.
+
+### Internal
+
+- **normalize:** `normalizeAllSchemas` now rewrites OpenAPI 3.0 → 3.1 schemas under every media-type entry in `content`, not only `application/json`. Previously, schemas declared under e.g. `multipart/form-data` or `image/jpeg` missed the rewrite and could throw at validation time.
+
 ## 0.1.4 (2026-04-08)
 
 ### Bug Fixes

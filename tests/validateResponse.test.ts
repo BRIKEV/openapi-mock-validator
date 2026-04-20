@@ -126,3 +126,84 @@ describe('validateResponse', () => {
     });
   });
 });
+
+describe('validateResponse — content-type support', () => {
+  const imageSpec = {
+    openapi: '3.0.0',
+    info: { title: 'test', version: '1.0.0' },
+    paths: {
+      '/qr': {
+        get: {
+          responses: {
+            '200': {
+              description: 'OK',
+              content: {
+                'image/jpeg': { schema: { type: 'string', format: 'binary' } },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const wildcardSpec = {
+    openapi: '3.0.0',
+    info: { title: 'test', version: '1.0.0' },
+    paths: {
+      '/qr': {
+        get: {
+          responses: {
+            '200': {
+              description: 'OK',
+              content: {
+                'image/*': { schema: { type: 'string', format: 'binary' } },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  it('returns valid with no warnings for binary content-type mismatch (acceptance #1)', async () => {
+    const validator = new OpenAPIMockValidator(imageSpec as never);
+    await validator.init();
+    const result = validator.validateResponse('/qr', 'get', 200, 'fake-png-bytes', {
+      contentType: 'image/png',
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('resolves family wildcard image/* (acceptance #2 & #5)', async () => {
+    const validator = new OpenAPIMockValidator(wildcardSpec as never);
+    await validator.init();
+    const result = validator.validateResponse('/qr', 'get', 200, 'fake-png-bytes', {
+      contentType: 'image/png',
+    });
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('emits MISSING_SCHEMA when JSON requested but spec only has image (acceptance #3)', async () => {
+    const validator = new OpenAPIMockValidator(imageSpec as never);
+    await validator.init();
+    const result = validator.validateResponse('/qr', 'get', 200, { url: 'x' }, {
+      contentType: 'application/json',
+    });
+    expect(result.valid).toBe(true); // no schema means no validation, valid but warned
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].type).toBe('MISSING_SCHEMA');
+  });
+
+  it('defaults to application/json when contentType is omitted (acceptance #4)', async () => {
+    const validator = new OpenAPIMockValidator(imageSpec as never);
+    await validator.init();
+    const result = validator.validateResponse('/qr', 'get', 200, { url: 'x' });
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].type).toBe('MISSING_SCHEMA');
+    expect(result.warnings[0].message).toContain('application/json');
+  });
+});

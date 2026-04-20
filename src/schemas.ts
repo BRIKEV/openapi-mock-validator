@@ -1,5 +1,34 @@
 import type { OpenAPISpec, ValidationWarning } from './types.js';
 
+const BINARY_PREFIXES = ['image/', 'video/', 'audio/'] as const;
+const BINARY_EXACT = new Set([
+  'application/octet-stream',
+  'application/pdf',
+  'application/zip',
+]);
+
+export function isBinaryContentType(contentType: string): boolean {
+  return BINARY_PREFIXES.some((prefix) => contentType.startsWith(prefix))
+    || BINARY_EXACT.has(contentType);
+}
+
+export function resolveMediaType(
+  content: Record<string, Record<string, unknown>>,
+  contentType: string,
+): Record<string, unknown> | null {
+  if (content[contentType]) return content[contentType];
+
+  const slashIndex = contentType.indexOf('/');
+  if (slashIndex > 0) {
+    const family = `${contentType.slice(0, slashIndex)}/*`;
+    if (content[family]) return content[family];
+  }
+
+  if (content['*/*']) return content['*/*'];
+
+  return null;
+}
+
 interface SchemaExtractionResult {
   schema: Record<string, unknown> | null;
   warnings: ValidationWarning[];
@@ -10,6 +39,7 @@ export function extractResponseSchema(
   path: string,
   method: string,
   status: number,
+  contentType: string = 'application/json',
 ): SchemaExtractionResult {
   const warnings: ValidationWarning[] = [];
   const normalizedMethod = method.toLowerCase();
@@ -48,11 +78,14 @@ export function extractResponseSchema(
     return { schema: null, warnings };
   }
 
-  const mediaType = content['application/json'];
+  const mediaType = resolveMediaType(content, contentType);
   if (!mediaType) {
+    if (isBinaryContentType(contentType)) {
+      return { schema: null, warnings: [] };
+    }
     warnings.push({
       type: 'MISSING_SCHEMA',
-      message: `No application/json content for ${method.toUpperCase()} ${path} (${status})`,
+      message: `No ${contentType} content for ${method.toUpperCase()} ${path} (${status})`,
     });
     return { schema: null, warnings };
   }
@@ -73,6 +106,7 @@ export function extractRequestSchema(
   spec: OpenAPISpec,
   path: string,
   method: string,
+  contentType: string = 'application/json',
 ): SchemaExtractionResult {
   const warnings: ValidationWarning[] = [];
   const normalizedMethod = method.toLowerCase();
@@ -105,11 +139,14 @@ export function extractRequestSchema(
     return { schema: null, warnings };
   }
 
-  const mediaType = content['application/json'];
+  const mediaType = resolveMediaType(content, contentType);
   if (!mediaType) {
+    if (isBinaryContentType(contentType)) {
+      return { schema: null, warnings: [] };
+    }
     warnings.push({
       type: 'MISSING_SCHEMA',
-      message: `No application/json content in requestBody for ${method.toUpperCase()} ${path}`,
+      message: `No ${contentType} content in requestBody for ${method.toUpperCase()} ${path}`,
     });
     return { schema: null, warnings };
   }

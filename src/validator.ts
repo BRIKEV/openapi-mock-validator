@@ -21,7 +21,7 @@ interface InternalError extends ValidationError {
 
 export class OpenAPIMockValidator {
   private spec: OpenAPISpec;
-  private options: Required<ValidatorOptions>;
+  private options: { strict: boolean };
   private compiledPaths: CompiledPath[] | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ajv2020 lacks proper type exports
   private ajv: any = null;
@@ -86,7 +86,8 @@ export class OpenAPIMockValidator {
   ): ValidationResult {
     this.ensureInitialized();
 
-    const { schema, warnings } = extractResponseSchema(this.spec, path, method, status);
+    const contentType = options?.contentType ?? 'application/json';
+    const { schema, warnings } = extractResponseSchema(this.spec, path, method, status, contentType);
     if (!schema) {
       return { valid: true, errors: [], warnings };
     }
@@ -103,7 +104,8 @@ export class OpenAPIMockValidator {
   ): ValidationResult {
     this.ensureInitialized();
 
-    const { schema, warnings } = extractRequestSchema(this.spec, path, method);
+    const contentType = options?.contentType ?? 'application/json';
+    const { schema, warnings } = extractRequestSchema(this.spec, path, method, contentType);
     if (!schema) {
       return { valid: true, errors: [], warnings };
     }
@@ -260,29 +262,37 @@ export class OpenAPIMockValidator {
         if (key.startsWith('x-') || typeof value !== 'object' || value === null) continue;
         const operation = value as Record<string, unknown>;
 
-        // Normalize response schemas
+        // Normalize response schemas across all content types
         const responses = operation.responses as Record<string, Record<string, unknown>> | undefined;
         if (responses) {
           for (const response of Object.values(responses)) {
             const content = response?.content as Record<string, Record<string, unknown>> | undefined;
-            if (content?.['application/json']?.schema) {
-              content['application/json'].schema = normalizeSpec(
-                content['application/json'].schema as Record<string, unknown>,
-                spec.openapi,
-              );
+            if (content) {
+              for (const mediaTypeObj of Object.values(content)) {
+                if (mediaTypeObj?.schema) {
+                  mediaTypeObj.schema = normalizeSpec(
+                    mediaTypeObj.schema as Record<string, unknown>,
+                    spec.openapi,
+                  );
+                }
+              }
             }
           }
         }
 
-        // Normalize request body schemas
+        // Normalize request body schemas across all content types
         const requestBody = operation.requestBody as Record<string, unknown> | undefined;
         if (requestBody) {
           const content = requestBody.content as Record<string, Record<string, unknown>> | undefined;
-          if (content?.['application/json']?.schema) {
-            content['application/json'].schema = normalizeSpec(
-              content['application/json'].schema as Record<string, unknown>,
-              spec.openapi,
-            );
+          if (content) {
+            for (const mediaTypeObj of Object.values(content)) {
+              if (mediaTypeObj?.schema) {
+                mediaTypeObj.schema = normalizeSpec(
+                  mediaTypeObj.schema as Record<string, unknown>,
+                  spec.openapi,
+                );
+              }
+            }
           }
         }
       }

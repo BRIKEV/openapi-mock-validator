@@ -78,3 +78,65 @@ describe('validateRequest', () => {
     });
   });
 });
+
+describe('validateRequest — content-type support', () => {
+  const spec = {
+    openapi: '3.0.0',
+    info: { title: 'test', version: '1.0.0' },
+    paths: {
+      '/upload': {
+        post: {
+          requestBody: {
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  required: ['file'],
+                  properties: { file: { type: 'string' } },
+                },
+              },
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['url'],
+                  properties: { url: { type: 'string' } },
+                },
+              },
+            },
+          },
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+    },
+  };
+
+  it('validates against the content-type specified in options', async () => {
+    const validator = new OpenAPIMockValidator(spec as never);
+    await validator.init();
+
+    // multipart branch requires "file"
+    const result = validator.validateRequest('/upload', 'post', { file: 'data' }, {
+      contentType: 'multipart/form-data',
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('defaults to application/json when contentType omitted', async () => {
+    const validator = new OpenAPIMockValidator(spec as never);
+    await validator.init();
+
+    const result = validator.validateRequest('/upload', 'post', { url: 'http://x' });
+    expect(result.valid).toBe(true);
+  });
+
+  it('silently bypasses binary content-type with no schema match', async () => {
+    const validator = new OpenAPIMockValidator(spec as never);
+    await validator.init();
+
+    const result = validator.validateRequest('/upload', 'post', 'raw-bytes', {
+      contentType: 'image/png',
+    });
+    expect(result.valid).toBe(true);
+    expect(result.warnings).toEqual([]);
+  });
+});

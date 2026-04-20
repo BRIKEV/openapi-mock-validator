@@ -1,5 +1,12 @@
 export interface ValidatorOptions {
   strict?: boolean;
+  /**
+   * Content-Type of the response or request being validated.
+   * Default: `"application/json"`.
+   * Accepts exact types (`"image/jpeg"`) or is matched against wildcard
+   * content-type entries in the spec (`"image/*"`, `"*\/*"`).
+   */
+  contentType?: string;
 }
 
 export interface PathMatch {
