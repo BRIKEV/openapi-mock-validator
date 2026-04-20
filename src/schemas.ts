@@ -12,6 +12,23 @@ export function isBinaryContentType(contentType: string): boolean {
     || BINARY_EXACT.has(contentType);
 }
 
+export function resolveMediaType(
+  content: Record<string, Record<string, unknown>>,
+  contentType: string,
+): Record<string, unknown> | null {
+  if (content[contentType]) return content[contentType];
+
+  const slashIndex = contentType.indexOf('/');
+  if (slashIndex > 0) {
+    const family = `${contentType.slice(0, slashIndex)}/*`;
+    if (content[family]) return content[family];
+  }
+
+  if (content['*/*']) return content['*/*'];
+
+  return null;
+}
+
 interface SchemaExtractionResult {
   schema: Record<string, unknown> | null;
   warnings: ValidationWarning[];

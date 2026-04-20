@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractResponseSchema, extractRequestSchema, isBinaryContentType } from '../src/schemas.js';
+import { extractResponseSchema, extractRequestSchema, isBinaryContentType, resolveMediaType } from '../src/schemas.js';
 import type { OpenAPISpec } from '../src/types.js';
 import petstore from './fixtures/petstore-3.0.json';
 
@@ -98,5 +98,44 @@ describe('isBinaryContentType', () => {
     expect(isBinaryContentType('application/xml')).toBe(false);
     expect(isBinaryContentType('text/plain')).toBe(false);
     expect(isBinaryContentType('text/html')).toBe(false);
+  });
+});
+
+describe('resolveMediaType', () => {
+  it('returns exact match when content-type is in the spec', () => {
+    const content = { 'image/png': { schema: { type: 'string' } } };
+    expect(resolveMediaType(content, 'image/png')).toEqual({ schema: { type: 'string' } });
+  });
+
+  it('falls back to family wildcard (image/*) when no exact match', () => {
+    const content = { 'image/*': { schema: { type: 'string' } } };
+    expect(resolveMediaType(content, 'image/png')).toEqual({ schema: { type: 'string' } });
+  });
+
+  it('falls back to */* when neither exact nor family match', () => {
+    const content = { '*/*': { schema: { type: 'string' } } };
+    expect(resolveMediaType(content, 'image/png')).toEqual({ schema: { type: 'string' } });
+  });
+
+  it('prefers exact match over wildcard', () => {
+    const content = {
+      'image/png': { schema: { const: 'exact' } },
+      'image/*': { schema: { const: 'family' } },
+      '*/*': { schema: { const: 'any' } },
+    };
+    expect(resolveMediaType(content, 'image/png')).toEqual({ schema: { const: 'exact' } });
+  });
+
+  it('prefers family wildcard over */*', () => {
+    const content = {
+      'image/*': { schema: { const: 'family' } },
+      '*/*': { schema: { const: 'any' } },
+    };
+    expect(resolveMediaType(content, 'image/png')).toEqual({ schema: { const: 'family' } });
+  });
+
+  it('returns null when nothing matches', () => {
+    const content = { 'application/xml': { schema: {} } };
+    expect(resolveMediaType(content, 'image/png')).toBeNull();
   });
 });
