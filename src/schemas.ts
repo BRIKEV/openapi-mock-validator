@@ -39,6 +39,7 @@ export function extractResponseSchema(
   path: string,
   method: string,
   status: number,
+  contentType: string = 'application/json',
 ): SchemaExtractionResult {
   const warnings: ValidationWarning[] = [];
   const normalizedMethod = method.toLowerCase();
@@ -77,11 +78,14 @@ export function extractResponseSchema(
     return { schema: null, warnings };
   }
 
-  const mediaType = content['application/json'];
+  const mediaType = resolveMediaType(content, contentType);
   if (!mediaType) {
+    if (isBinaryContentType(contentType)) {
+      return { schema: null, warnings: [] };
+    }
     warnings.push({
       type: 'MISSING_SCHEMA',
-      message: `No application/json content for ${method.toUpperCase()} ${path} (${status})`,
+      message: `No ${contentType} content for ${method.toUpperCase()} ${path} (${status})`,
     });
     return { schema: null, warnings };
   }

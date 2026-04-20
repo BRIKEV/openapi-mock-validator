@@ -139,3 +139,83 @@ describe('resolveMediaType', () => {
     expect(resolveMediaType(content, 'image/png')).toBeNull();
   });
 });
+
+describe('extractResponseSchema (content-type aware)', () => {
+  const specWithImage: OpenAPISpec = {
+    openapi: '3.0.0',
+    paths: {
+      '/qr': {
+        get: {
+          responses: {
+            '200': {
+              description: 'OK',
+              content: {
+                'image/jpeg': { schema: { type: 'string', format: 'binary' } },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const specWithImageWildcard: OpenAPISpec = {
+    openapi: '3.0.0',
+    paths: {
+      '/qr': {
+        get: {
+          responses: {
+            '200': {
+              description: 'OK',
+              content: {
+                'image/*': { schema: { type: 'string', format: 'binary' } },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  it('defaults to application/json when contentType is not passed', () => {
+    // petstore fixture defines application/json for /v1/pets GET 200
+    const result = extractResponseSchema(spec, '/v1/pets', 'get', 200);
+    expect(result.schema).toBeDefined();
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('returns schema for exact content-type match', () => {
+    const result = extractResponseSchema(specWithImage, '/qr', 'get', 200, 'image/jpeg');
+    expect(result.schema).toEqual({ type: 'string', format: 'binary' });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('returns schema for family wildcard match (image/*)', () => {
+    const result = extractResponseSchema(specWithImageWildcard, '/qr', 'get', 200, 'image/png');
+    expect(result.schema).toEqual({ type: 'string', format: 'binary' });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('silently bypasses binary content-type when no match (no warning)', () => {
+    // spec declares image/jpeg; consumer sends image/png — no wildcard, but binary so silent
+    const result = extractResponseSchema(specWithImage, '/qr', 'get', 200, 'image/png');
+    expect(result.schema).toBeNull();
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('emits MISSING_SCHEMA when JSON requested but spec only has image', () => {
+    const result = extractResponseSchema(specWithImage, '/qr', 'get', 200, 'application/json');
+    expect(result.schema).toBeNull();
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].type).toBe('MISSING_SCHEMA');
+    expect(result.warnings[0].message).toContain('application/json');
+  });
+
+  it('emits MISSING_SCHEMA when non-binary non-JSON requested and no match', () => {
+    const result = extractResponseSchema(specWithImage, '/qr', 'get', 200, 'application/xml');
+    expect(result.schema).toBeNull();
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].type).toBe('MISSING_SCHEMA');
+    expect(result.warnings[0].message).toContain('application/xml');
+  });
+});
