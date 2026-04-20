@@ -140,6 +140,51 @@ describe('resolveMediaType', () => {
   });
 });
 
+describe('extractRequestSchema (content-type aware)', () => {
+  const specWithMultipart: OpenAPISpec = {
+    openapi: '3.0.0',
+    paths: {
+      '/upload': {
+        post: {
+          requestBody: {
+            content: {
+              'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string' } } } },
+              'application/json': { schema: { type: 'object', properties: { url: { type: 'string' } } } },
+            },
+          },
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+    },
+  };
+
+  it('defaults to application/json when contentType is not passed', () => {
+    const result = extractRequestSchema(specWithMultipart, '/upload', 'post');
+    expect(result.schema).toEqual({ type: 'object', properties: { url: { type: 'string' } } });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('returns schema for exact content-type match', () => {
+    const result = extractRequestSchema(specWithMultipart, '/upload', 'post', 'multipart/form-data');
+    expect(result.schema).toEqual({ type: 'object', properties: { file: { type: 'string' } } });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('silently bypasses binary content-type when no match', () => {
+    const result = extractRequestSchema(specWithMultipart, '/upload', 'post', 'image/png');
+    expect(result.schema).toBeNull();
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('emits MISSING_SCHEMA when non-binary content-type has no match', () => {
+    const result = extractRequestSchema(specWithMultipart, '/upload', 'post', 'application/xml');
+    expect(result.schema).toBeNull();
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].type).toBe('MISSING_SCHEMA');
+    expect(result.warnings[0].message).toContain('application/xml');
+  });
+});
+
 describe('extractResponseSchema (content-type aware)', () => {
   const specWithImage: OpenAPISpec = {
     openapi: '3.0.0',

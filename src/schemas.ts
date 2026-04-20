@@ -106,6 +106,7 @@ export function extractRequestSchema(
   spec: OpenAPISpec,
   path: string,
   method: string,
+  contentType: string = 'application/json',
 ): SchemaExtractionResult {
   const warnings: ValidationWarning[] = [];
   const normalizedMethod = method.toLowerCase();
@@ -138,11 +139,14 @@ export function extractRequestSchema(
     return { schema: null, warnings };
   }
 
-  const mediaType = content['application/json'];
+  const mediaType = resolveMediaType(content, contentType);
   if (!mediaType) {
+    if (isBinaryContentType(contentType)) {
+      return { schema: null, warnings: [] };
+    }
     warnings.push({
       type: 'MISSING_SCHEMA',
-      message: `No application/json content in requestBody for ${method.toUpperCase()} ${path}`,
+      message: `No ${contentType} content in requestBody for ${method.toUpperCase()} ${path}`,
     });
     return { schema: null, warnings };
   }
