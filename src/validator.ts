@@ -86,7 +86,8 @@ export class OpenAPIMockValidator {
   ): ValidationResult {
     this.ensureInitialized();
 
-    const { schema, warnings } = extractResponseSchema(this.spec, path, method, status);
+    const contentType = options?.contentType ?? 'application/json';
+    const { schema, warnings } = extractResponseSchema(this.spec, path, method, status, contentType);
     if (!schema) {
       return { valid: true, errors: [], warnings };
     }
