@@ -1,5 +1,17 @@
 import type { OpenAPISpec, ValidationWarning } from './types.js';
 
+const BINARY_PREFIXES = ['image/', 'video/', 'audio/'] as const;
+const BINARY_EXACT = new Set([
+  'application/octet-stream',
+  'application/pdf',
+  'application/zip',
+]);
+
+export function isBinaryContentType(contentType: string): boolean {
+  return BINARY_PREFIXES.some((prefix) => contentType.startsWith(prefix))
+    || BINARY_EXACT.has(contentType);
+}
+
 interface SchemaExtractionResult {
   schema: Record<string, unknown> | null;
   warnings: ValidationWarning[];

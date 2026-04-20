@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractResponseSchema, extractRequestSchema } from '../src/schemas.js';
+import { extractResponseSchema, extractRequestSchema, isBinaryContentType } from '../src/schemas.js';
 import type { OpenAPISpec } from '../src/types.js';
 import petstore from './fixtures/petstore-3.0.json';
 
@@ -72,5 +72,31 @@ describe('extractRequestSchema', () => {
     expect(result.schema).toBeNull();
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0].type).toBe('MISSING_SCHEMA');
+  });
+});
+
+describe('isBinaryContentType', () => {
+  it('returns true for image/* types', () => {
+    expect(isBinaryContentType('image/png')).toBe(true);
+    expect(isBinaryContentType('image/jpeg')).toBe(true);
+    expect(isBinaryContentType('image/svg+xml')).toBe(true);
+  });
+
+  it('returns true for video/* and audio/* types', () => {
+    expect(isBinaryContentType('video/mp4')).toBe(true);
+    expect(isBinaryContentType('audio/mpeg')).toBe(true);
+  });
+
+  it('returns true for application binary types', () => {
+    expect(isBinaryContentType('application/octet-stream')).toBe(true);
+    expect(isBinaryContentType('application/pdf')).toBe(true);
+    expect(isBinaryContentType('application/zip')).toBe(true);
+  });
+
+  it('returns false for JSON and text types', () => {
+    expect(isBinaryContentType('application/json')).toBe(false);
+    expect(isBinaryContentType('application/xml')).toBe(false);
+    expect(isBinaryContentType('text/plain')).toBe(false);
+    expect(isBinaryContentType('text/html')).toBe(false);
   });
 });
