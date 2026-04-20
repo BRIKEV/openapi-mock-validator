@@ -21,7 +21,7 @@ interface InternalError extends ValidationError {
 
 export class OpenAPIMockValidator {
   private spec: OpenAPISpec;
-  private options: Required<ValidatorOptions>;
+  private options: { strict: boolean };
   private compiledPaths: CompiledPath[] | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ajv2020 lacks proper type exports
   private ajv: any = null;
